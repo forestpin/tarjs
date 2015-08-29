@@ -26,7 +26,7 @@ Block size is 512 bytes
         n += BLOCK
         if n + file.length > L
          throw new Error 'Error parsing tar file'
-        file.data = @data.slice n, n + file.length
+        file.content = @data.slice n, n + file.length
         @files[file.filename] = file
         n += BLOCK * Math.ceil file.length / BLOCK
        else
