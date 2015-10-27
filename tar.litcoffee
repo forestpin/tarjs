@@ -12,6 +12,81 @@ Block size is 512 bytes
       @files = {}
       @encoding = 'utf8'
 
+     create: (files) ->
+      @files = files
+      headers = {}
+      nBlocks = 0
+
+      prefix = (s, length, fill = '0') ->
+       while s.length < length
+        s = fill + s
+       return s
+
+      for path, file of @files
+       header =
+        filename: file.filename
+        mode: prefix ((file.mode & 0o777).toString 8), 7
+        uid: prefix (file.uid.toString 8), 7
+        gid: prefix (file.gid.toString 8), 7
+        length: prefix (file.content.length.toString 8), 11
+        lastModified: (file.lastModified.getTime() // 1000).toString 8
+        checkSum: 0
+        fileType: if file.directory then '5' else '0'
+        linkName: ''
+
+       if file.directory
+        header.filename += '/'
+
+       headerBuffer = new Buffer 512
+       for i in [0...512]
+        headerBuffer[i] = 0
+
+       n = 0
+       headerBuffer.write header.filename, n, header.filename.length, 'ascii'
+       n += 100
+       headerBuffer.write header.mode, n, 7, 'ascii'
+       n += 8
+       headerBuffer.write header.uid, n, 7, 'ascii'
+       n += 8
+       headerBuffer.write header.gid, n, 7, 'ascii'
+       n += 8
+       headerBuffer.write header.length, n, 11, 'ascii'
+       n += 12
+       headerBuffer.write header.lastModified, n, 11, 'ascii'
+       n += 12
+       checksumOffset = n
+       headerBuffer.write '        ', n, 8, 'ascii'
+       n += 8
+       headerBuffer.write header.fileType, n, 1, 'ascii'
+       n += 1
+       headerBuffer.write header.linkName, n, header.linkName, 'ascii'
+
+       checksum = 0
+       for i in [0...512]
+        checksum += headerBuffer[i]
+
+       header.checksum = prefix (checksum.toString 8), 6
+       n = checksumOffset
+       headerBuffer.write header.checksum, n, 6, 'ascii'
+       n += 7
+       headerBuffer.write ' ', n, 1, 'ascii'
+
+       headers[path] = headerBuffer
+       nBlocks += 1 + Math.ceil file.content.length / BLOCK
+
+      @data = new Buffer nBlocks * BLOCK
+
+      for i in [0...@data.length]
+       @data[i] = 0
+
+      n = 0
+      for path, file of @files
+       headers[path].copy @data, n, 0
+       n += BLOCK
+       console.log file
+       file.content.copy @data, n, 0
+       n += BLOCK * Math.ceil file.content.length / BLOCK
+
      parse: (data) ->
       @data = data
       if @data.byteLength?
@@ -57,6 +132,9 @@ If it is NodeJS Buffer
        s = @_bufferToString @data.slice n, n + l
        n += l
        return parseInt (s.replace /[^\d]/g, ''), 8
+       console.log s
+
+      console.log (@data.slice n, n + 512).toString 'ascii'
 
       header.filename = sub 100
       header.mode = sub 8
