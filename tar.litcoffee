@@ -83,7 +83,6 @@ Block size is 512 bytes
       for path, file of @files
        headers[path].copy @data, n, 0
        n += BLOCK
-       console.log file
        file.content.copy @data, n, 0
        n += BLOCK * Math.ceil file.content.length / BLOCK
 
@@ -132,9 +131,6 @@ If it is NodeJS Buffer
        s = @_bufferToString @data.slice n, n + l
        n += l
        return parseInt (s.replace /[^\d]/g, ''), 8
-       console.log s
-
-      console.log (@data.slice n, n + 512).toString 'ascii'
 
       header.filename = sub 100
       header.mode = sub 8
