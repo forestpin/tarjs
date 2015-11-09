@@ -48,11 +48,27 @@ Block size is 512 bytes
         name: header.filename
         prefix: ''
        if header.filename.length > 100
-        header.longFilename.name =
-         header.filename.substr header.filename.length - 100
-        header.longFilename.prefix =
-         header.filename.substr 0, header.filename.length - 100
+        long = header.longFilename =
+         name: ''
+         prefix: ''
+        parts = header.filename.split '/'
+        console.log parts
 
+        joinPath = (path, prefix) ->
+         temp = path
+         temp = "/#{temp}" if temp.length > 0
+         temp = "#{prefix}#{temp}"
+         return temp
+
+        while parts.length > 0
+         temp = joinPath long.name, parts[parts.length - 1]
+         break if temp.length > 100
+         long.name = temp
+         parts.pop()
+        while parts.length > 0
+         temp = joinPath long.prefix, parts[parts.length - 1]
+         long.prefix = temp
+         parts.pop()
 
        headerBuffer = new Buffer 512
        for i in [0...512]
@@ -177,7 +193,11 @@ If it is NodeJS Buffer
       header.device.major = sub 8
       header.device.minor = sub 8
       header.longFilename.prefix = sub 155
-      header.filename = header.longFilename.prefix = header.longFilename.name
+      if header.longFilename.prefix isnt ''
+       header.filename = "#{header.longFilename.prefix}/#{header.longFilename.name}"
+      else
+       header.filename = header.longFilename.name
+
 
       return header
 
