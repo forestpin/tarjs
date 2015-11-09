@@ -52,7 +52,6 @@ Block size is 512 bytes
          name: ''
          prefix: ''
         parts = header.filename.split '/'
-        console.log parts
 
         joinPath = (path, prefix) ->
          temp = path
@@ -99,7 +98,6 @@ Block size is 512 bytes
        writeToBuffer header.owner.group, 32
        writeToBuffer header.device.major, 8
        writeToBuffer header.device.minor, 8
-       console.log n
        writeToBuffer header.longFilename.prefix, 155
 
 
