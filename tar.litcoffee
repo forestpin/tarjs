@@ -42,7 +42,12 @@ Block size is 512 bytes
         headerBuffer[i] = 0
 
        n = 0
-       headerBuffer.write header.filename, n, header.filename.length, 'ascii'
+       filename = header.filename
+       filenamePrefix = ''
+       if header.filename.length > 100
+        filename = header.filename.substr header.filename.length - 100
+        filenamePrefix = header.filename.substr 0, header.filename.length - 100
+       headerBuffer.write filename, n, filename.length, 'ascii'
        n += 100
        headerBuffer.write header.mode, n, 7, 'ascii'
        n += 8
@@ -59,7 +64,14 @@ Block size is 512 bytes
        n += 8
        headerBuffer.write header.fileType, n, 1, 'ascii'
        n += 1
-       headerBuffer.write header.linkName, n, header.linkName, 'ascii'
+       headerBuffer.write header.linkName, n, header.linkName.length, 'ascii'
+       if filenamePrefix?
+        console.log 'prefix'
+        n = 345
+        if filenamePrefix.length > 155
+         throw new Error "Filename too long: #{header.filename}"
+        headerBuffer.write filenamePrefix, n, filenamePrefix.length, 'ascii'
+
 
        checksum = 0
        for i in [0...512]
