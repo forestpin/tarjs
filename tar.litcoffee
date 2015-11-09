@@ -33,44 +33,58 @@ Block size is 512 bytes
         checkSum: 0
         fileType: if file.directory then '5' else '0'
         linkName: ''
+        longFilename: {}
+        owner:
+         name: 'varuna'
+         group: 'varuna'
+        device:
+         major: ''
+         minor: ''
 
        if file.directory
         header.filename += '/'
+
+       header.longFilename =
+        name: header.filename
+        prefix: ''
+       if header.filename.length > 100
+        header.longFilename.name =
+         header.filename.substr header.filename.length - 100
+        header.longFilename.prefix =
+         header.filename.substr 0, header.filename.length - 100
+
 
        headerBuffer = new Buffer 512
        for i in [0...512]
         headerBuffer[i] = 0
 
        n = 0
-       filename = header.filename
-       filenamePrefix = ''
-       if header.filename.length > 100
-        filename = header.filename.substr header.filename.length - 100
-        filenamePrefix = header.filename.substr 0, header.filename.length - 100
-       headerBuffer.write filename, n, filename.length, 'ascii'
-       n += 100
-       headerBuffer.write header.mode, n, 7, 'ascii'
-       n += 8
-       headerBuffer.write header.uid, n, 7, 'ascii'
-       n += 8
-       headerBuffer.write header.gid, n, 7, 'ascii'
-       n += 8
-       headerBuffer.write header.length, n, 11, 'ascii'
-       n += 12
-       headerBuffer.write header.lastModified, n, 11, 'ascii'
-       n += 12
+       writeToBuffer = (str, len) ->
+        len ?= str.length
+        if str.length > len
+         throw new Error "String doesnt fit the header: #{str}, #{len}"
+        headerBuffer.write str, n, str.length, 'ascii'
+        n += len
+
+       n = 0
+       writeToBuffer header.longFilename.name, 100
+       writeToBuffer header.mode, 8
+       writeToBuffer header.uid, 8
+       writeToBuffer header.gid, 8
+       writeToBuffer header.length, 12
+       writeToBuffer header.lastModified, 12
        checksumOffset = n
-       headerBuffer.write '        ', n, 8, 'ascii'
-       n += 8
-       headerBuffer.write header.fileType, n, 1, 'ascii'
-       n += 1
-       headerBuffer.write header.linkName, n, header.linkName.length, 'ascii'
-       if filenamePrefix?
-        console.log 'prefix'
-        n = 345
-        if filenamePrefix.length > 155
-         throw new Error "Filename too long: #{header.filename}"
-        headerBuffer.write filenamePrefix, n, filenamePrefix.length, 'ascii'
+       writeToBuffer '        ', 8
+       writeToBuffer header.fileType, 1
+       writeToBuffer header.linkName, 100
+       writeToBuffer 'ustar', 6
+       writeToBuffer '00', 2
+       writeToBuffer header.owner.name, 32
+       writeToBuffer header.owner.group, 32
+       writeToBuffer header.device.major, 8
+       writeToBuffer header.device.minor, 8
+       console.log n
+       writeToBuffer header.longFilename.prefix, 155
 
 
        checksum = 0
@@ -144,7 +158,8 @@ If it is NodeJS Buffer
        n += l
        return parseInt (s.replace /[^\d]/g, ''), 8
 
-      header.filename = sub 100
+      header.longFilename = {}
+      header.longFilename.name = sub 100
       header.mode = sub 8
       header.uid = sub 8
       header.gid = sub 8
@@ -153,6 +168,16 @@ If it is NodeJS Buffer
       header.checkSum = sub 8
       header.fileType = sub 1
       header.linkName = sub 100
+      header.ustar = sub 6
+      header.ustarVersion = sub 2
+      header.owner = {}
+      header.owner.name = sub 32
+      header.owner.group = sub 32
+      header.device = {}
+      header.device.major = sub 8
+      header.device.minor = sub 8
+      header.longFilename.prefix = sub 155
+      header.filename = header.longFilename.prefix = header.longFilename.name
 
       return header
 
