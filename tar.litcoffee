@@ -22,7 +22,11 @@ Block size is 512 bytes
         s = fill + s
        return s
 
-      for path, file of @files
+      list = (path for path of @files)
+      list.sort()
+
+      for path in list
+       file = @files[path]
        header =
         filename: file.filename
         mode: prefix ((file.mode & 0o777).toString 8), 7
