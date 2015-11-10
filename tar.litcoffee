@@ -124,7 +124,8 @@ Block size is 512 bytes
        @data[i] = 0
 
       n = 0
-      for path, file of @files
+      for path in list
+       file = @files[path]
        headers[path].copy @data, n, 0
        n += BLOCK
        file.content.copy @data, n, 0
