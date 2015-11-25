@@ -59,15 +59,12 @@ Block size is 512 bytes
         prefix: ''
        if header.filename.length > 100
         long = header.longFilename =
-         name: ''
-         prefix: ''
+         name: null
+         prefix: null
         parts = header.filename.split '/'
 
         joinPath = (path, prefix) ->
-         temp = path
-         temp = "/#{temp}" if temp.length > 0
-         temp = "#{prefix}#{temp}"
-         return temp
+         if path? then "#{prefix}/#{path}" else prefix
 
         while parts.length > 0
          temp = joinPath long.name, parts[parts.length - 1]
@@ -78,6 +75,9 @@ Block size is 512 bytes
          temp = joinPath long.prefix, parts[parts.length - 1]
          long.prefix = temp
          parts.pop()
+
+        long.name ?= ''
+        long.prefix ?= ''
 
        headerBuffer = new Buffer 512
        for i in [0...512]
