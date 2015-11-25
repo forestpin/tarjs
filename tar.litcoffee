@@ -3,6 +3,12 @@
 Block size is 512 bytes
 
     BLOCK = 512
+    ZLIB = null
+    if module?
+     try
+      ZLIB = require 'zlib'
+     catch e
+      ZLIB = null
 
 
     class Tar
@@ -131,8 +137,19 @@ Block size is 512 bytes
        file.content.copy @data, n, 0
        n += BLOCK * Math.ceil file.content.length / BLOCK
 
-     parse: (data) ->
+     gzip: (data, callback) ->
+      if not ZLIB?
+       throw Error 'zlib not present'
+      ZLIB.gzip data, callback
+
+     gunzip: (data, callback) ->
+      if not ZLIB?
+       throw Error 'zlib not present'
+      ZLIB.gunzip data, callback
+
+     parse: (data, gzip = false) ->
       @data = data
+
       if @data.byteLength?
        L = @data.byteLength
       else
