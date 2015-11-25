@@ -71,15 +71,11 @@ Block size is 512 bytes
 
         while parts.length > 0
          temp = joinPath long.name, parts[parts.length - 1]
-         if long.name is '' and file.directory
-          temp = "#{temp}/"
          break if temp.length > 100
          long.name = temp
          parts.pop()
         while parts.length > 0
          temp = joinPath long.prefix, parts[parts.length - 1]
-         if long.name is '' and long.prefix is '' and file.directory
-          temp = "#{temp}/"
          long.prefix = temp
          parts.pop()
 
