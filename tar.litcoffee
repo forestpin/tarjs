@@ -156,7 +156,7 @@ Block size is 512 bytes
        L = @data.length
 
       n = 0
-      while n + BLOCK < L
+      while n + BLOCK <= L
        file = @_parseHeader n
        if file.length > 0 or file.filename isnt ''
         n += BLOCK
