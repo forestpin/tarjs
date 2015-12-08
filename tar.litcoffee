@@ -160,7 +160,7 @@ Tar class
        headerBuffer.write header.length, 12
        headerBuffer.write header.lastModified, 12
        checksumOffset = headerBuffer.writeOffset
-       headerBuffer.write '      ', 8
+       headerBuffer.write '        ', 8
        headerBuffer.write header.fileType, 1
        headerBuffer.write header.linkName, 100
        headerBuffer.write 'ustar', 6
