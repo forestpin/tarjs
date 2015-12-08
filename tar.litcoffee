@@ -11,6 +11,71 @@ Block size is 512 bytes
       ZLIB = null
 
 
+Node Buffer
+
+    class NodeTarBuffer
+     constructor: (length) ->
+      @buffer = new Buffer length
+      for i in [0...@buffer.length]
+       @buffer[i] = 0
+
+      @writeOffset = 0
+
+     write: (str, len) ->
+      len ?= str.length
+      if str.length > len
+       throw new Error "String doesnt fit the header: #{str}, #{len}"
+      @buffer.write str, @writeOffset, str.length, 'ascii'
+      @writeOffset += len
+
+     checksum: ->
+      checksum = 0
+      for i in [0...@buffer.length]
+       checksum += @buffer[i]
+
+      return checksum
+
+     copy: (buffer, offset) ->
+      buffer.copy @buffer, offset, 0
+
+
+
+Typed tar buffer
+
+
+    class TypedTarBuffer
+     constructor: (length) ->
+      @buffer = new Uint8Array length
+      @writeOffset = 0
+
+     write: (str, len) ->
+      len ?= str.length
+      if str.length > len
+       throw new Error "String doesnt fit the header: #{str}, #{len}"
+      for i in [0...str.length]
+       @buffer[@writeOffset + i] = str.charCodeAt i
+      @writeOffset += len
+
+     checksum: ->
+      checksum = 0
+      for i in [0...@buffer.length]
+       checksum += @buffer[i]
+
+      return checksum
+
+     copy: (buffer, offset) ->
+      for i in [0...buffer.length]
+       @buffer[offset + i] = buffer[i]
+
+
+
+    TarBuffer = if module? then NodeTarBuffer else TypedTarBuffer
+
+
+Tar class
+
+
+
     class Tar
 
      constructor: (encoding = 'utf8') ->
@@ -18,124 +83,119 @@ Block size is 512 bytes
       @files = {}
       @encoding = 'utf8'
 
+     _prefixFill: (s, length, fill = '0') ->
+       while s.length < length
+        s = fill + s
+       return s
+
+     _joinPath: (path, prefix) ->
+      if path? then "#{prefix}/#{path}" else prefix
+
+
+     _createHeader: (file) ->
+      header =
+       filename: file.filename
+       mode: @_prefixFill ((file.mode & 0o777).toString 8), 7
+       uid: @_prefixFill (file.uid.toString 8), 7
+       gid: @_prefixFill (file.gid.toString 8), 7
+       length: @_prefixFill (file.content.length.toString 8), 11
+       lastModified: (file.lastModified.getTime() // 1000).toString 8
+       checkSum: 0
+       fileType: if file.directory then '5' else '0'
+       linkName: ''
+       longFilename: {}
+       owner:
+        name: 'varuna'
+        group: 'varuna'
+       device:
+        major: ''
+        minor: ''
+
+      if file.directory
+       header.filename += '/'
+
+      header.longFilename =
+       name: header.filename
+       prefix: ''
+      if header.filename.length > 100
+       long = header.longFilename =
+        name: null
+        prefix: null
+       parts = header.filename.split '/'
+
+       while parts.length > 0
+        temp = @_joinPath long.name, parts[parts.length - 1]
+        break if temp.length > 100
+        long.name = temp
+        parts.pop()
+       while parts.length > 0
+        temp = @_joinPath long.prefix, parts[parts.length - 1]
+        long.prefix = temp
+        parts.pop()
+
+       long.name ?= ''
+       long.prefix ?= ''
+
+      return header
+
+
      create: (files) ->
       @files = files
       headers = {}
       nBlocks = 0
-
-      prefix = (s, length, fill = '0') ->
-       while s.length < length
-        s = fill + s
-       return s
 
       list = (path for path of @files)
       list.sort()
 
       for path in list
        file = @files[path]
-       header =
-        filename: file.filename
-        mode: prefix ((file.mode & 0o777).toString 8), 7
-        uid: prefix (file.uid.toString 8), 7
-        gid: prefix (file.gid.toString 8), 7
-        length: prefix (file.content.length.toString 8), 11
-        lastModified: (file.lastModified.getTime() // 1000).toString 8
-        checkSum: 0
-        fileType: if file.directory then '5' else '0'
-        linkName: ''
-        longFilename: {}
-        owner:
-         name: 'varuna'
-         group: 'varuna'
-        device:
-         major: ''
-         minor: ''
+       header = @_createHeader file
 
-       if file.directory
-        header.filename += '/'
+       headerBuffer = new TarBuffer 512
 
-       header.longFilename =
-        name: header.filename
-        prefix: ''
-       if header.filename.length > 100
-        long = header.longFilename =
-         name: null
-         prefix: null
-        parts = header.filename.split '/'
-
-        joinPath = (path, prefix) ->
-         if path? then "#{prefix}/#{path}" else prefix
-
-        while parts.length > 0
-         temp = joinPath long.name, parts[parts.length - 1]
-         break if temp.length > 100
-         long.name = temp
-         parts.pop()
-        while parts.length > 0
-         temp = joinPath long.prefix, parts[parts.length - 1]
-         long.prefix = temp
-         parts.pop()
-
-        long.name ?= ''
-        long.prefix ?= ''
-
-       headerBuffer = new Buffer 512
-       for i in [0...512]
-        headerBuffer[i] = 0
-
-       n = 0
-       writeToBuffer = (str, len) ->
-        len ?= str.length
-        if str.length > len
-         throw new Error "String doesnt fit the header: #{str}, #{len}"
-        headerBuffer.write str, n, str.length, 'ascii'
-        n += len
-
-       n = 0
-       writeToBuffer header.longFilename.name, 100
-       writeToBuffer header.mode, 8
-       writeToBuffer header.uid, 8
-       writeToBuffer header.gid, 8
-       writeToBuffer header.length, 12
-       writeToBuffer header.lastModified, 12
-       checksumOffset = n
-       writeToBuffer '        ', 8
-       writeToBuffer header.fileType, 1
-       writeToBuffer header.linkName, 100
-       writeToBuffer 'ustar', 6
-       writeToBuffer '00', 2
-       writeToBuffer header.owner.name, 32
-       writeToBuffer header.owner.group, 32
-       writeToBuffer header.device.major, 8
-       writeToBuffer header.device.minor, 8
-       writeToBuffer header.longFilename.prefix, 155
+       headerBuffer.write header.longFilename.name, 100
+       headerBuffer.write header.mode, 8
+       headerBuffer.write header.uid, 8
+       headerBuffer.write header.gid, 8
+       headerBuffer.write header.length, 12
+       headerBuffer.write header.lastModified, 12
+       checksumOffset = headerBuffer.writeOffset
+       headerBuffer.write '      ', 8
+       headerBuffer.write header.fileType, 1
+       headerBuffer.write header.linkName, 100
+       headerBuffer.write 'ustar', 6
+       headerBuffer.write '00', 2
+       headerBuffer.write header.owner.name, 32
+       headerBuffer.write header.owner.group, 32
+       headerBuffer.write header.device.major, 8
+       headerBuffer.write header.device.minor, 8
+       headerBuffer.write header.longFilename.prefix, 155
 
 
-       checksum = 0
-       for i in [0...512]
-        checksum += headerBuffer[i]
+       checksum = headerBuffer.checksum()
+       header.checksum = @_prefixFill (checksum.toString 8), 6
+       headerBuffer.writeOffset = checksumOffset
+       headerBuffer.write header.checksum, 6
 
-       header.checksum = prefix (checksum.toString 8), 6
-       n = checksumOffset
-       headerBuffer.write header.checksum, n, 6, 'ascii'
-       n += 7
-       headerBuffer.write ' ', n, 1, 'ascii'
+       #NUL and space
+       headerBuffer.writeOffset++
+       headerBuffer.write ' ', 1
 
-       headers[path] = headerBuffer
+       headers[path] = headerBuffer.buffer
        nBlocks += 1 + Math.ceil file.content.length / BLOCK
 
-      @data = new Buffer nBlocks * BLOCK
-
-      for i in [0...@data.length]
-       @data[i] = 0
+      @data = new TarBuffer nBlocks * BLOCK
 
       n = 0
       for path in list
        file = @files[path]
-       headers[path].copy @data, n, 0
+       @data.copy headers[path], n
        n += BLOCK
-       file.content.copy @data, n, 0
+       @data.copy file.content, n
        n += BLOCK * Math.ceil file.content.length / BLOCK
+
+      @data = @data.buffer
+
 
      gzip: (data, callback) ->
       if not ZLIB?
