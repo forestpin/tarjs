@@ -69,7 +69,10 @@ Typed tar buffer
 
 
 
-    TarBuffer = if module? then NodeTarBuffer else TypedTarBuffer
+    if window?.document?.removeEventListener?
+     TarBuffer = TypedTarBuffer
+    else
+     TarBuffer = NodeTarBuffer
 
 
 Tar class
